@@ -30,7 +30,7 @@ class PokemonFactory {
         const catchRate: number = this.catchRateHelper(basePokemon.catchRate);
         const exp: number = basePokemon.exp;
         const level: number = this.routeLevel(route, region);
-        const heldItem: string = this.generateHeldItem(basePokemon.heldItem, GameConstants.ROUTE_HELD_ITEM_CHANCE);
+        const heldItem: BagItem = this.generateHeldItem(basePokemon.heldItem, GameConstants.ROUTE_HELD_ITEM_MODIFIER);
 
         const money: number = this.routeMoney(route,region);
         const shiny: boolean = this.generateShiny(GameConstants.SHINY_CHANCE_BATTLE);
@@ -94,12 +94,12 @@ class PokemonFactory {
     }
 
     /**
-     * Generate a trainer pokemon based on gymName, index and the dataList.
+     * Generate a Gym trainer pokemon based on gymName, index and the dataList.
      * @param gymName name of the gym that the player is fighting.
      * @param index index of the pokémon that is being generated.
      * @returns {any}
      */
-    public static generateTrainerPokemon(gymName: string, index: number): BattlePokemon {
+    public static generateGymPokemon(gymName: string, index: number): BattlePokemon {
         const gym = gymList[gymName];
         const pokemon = gym.pokemons[index];
         const basePokemon = PokemonHelper.getPokemonByName(pokemon.name);
@@ -109,16 +109,14 @@ class PokemonFactory {
         return new BattlePokemon(pokemon.name, basePokemon.id, basePokemon.type1, basePokemon.type2, pokemon.maxHealth, pokemon.level, 0, exp, 0, shiny, GameConstants.GYM_SHARDS);
     }
 
-    public static generateDungeonPokemon(pokemonList: PokemonNameType[], chestsOpened: number, baseHealth: number, level: number): BattlePokemon {
-        const random: number = GameConstants.randomIntBetween(0, pokemonList.length - 1);
-        const name: PokemonNameType = pokemonList[random];
+    public static generateDungeonPokemon(name: PokemonNameType, chestsOpened: number, baseHealth: number, level: number): BattlePokemon {
         const basePokemon = PokemonHelper.getPokemonByName(name);
         const id = basePokemon.id;
         const maxHealth: number = Math.floor(baseHealth * (1 + (chestsOpened / 5)));
         const catchRate: number = this.catchRateHelper(basePokemon.catchRate);
         const exp: number = basePokemon.exp;
         const money = 0;
-        const heldItem = this.generateHeldItem(basePokemon.heldItem, GameConstants.DUNGEON_HELD_ITEM_CHANCE);
+        const heldItem = this.generateHeldItem(basePokemon.heldItem, GameConstants.DUNGEON_HELD_ITEM_MODIFIER);
         const shiny: boolean = this.generateShiny(GameConstants.SHINY_CHANCE_DUNGEON);
         if (shiny) {
             Notifier.notify({
@@ -131,9 +129,17 @@ class PokemonFactory {
         return new BattlePokemon(name, id, basePokemon.type1, basePokemon.type2, maxHealth, level, catchRate, exp, money, shiny, GameConstants.DUNGEON_SHARDS, heldItem);
     }
 
-    public static generateDungeonBoss(bossPokemonList: DungeonBossPokemon[], chestsOpened: number): BattlePokemon {
-        const random: number = GameConstants.randomIntBetween(0, bossPokemonList.length - 1);
-        const bossPokemon = bossPokemonList[random];
+    public static generateDungeonTrainerPokemon(pokemon: GymPokemon, chestsOpened: number, baseHealth: number, level: number): BattlePokemon {
+        // TODO: HLXII - Will Dungeon Trainer pokemon health be handled differently?
+        const name = pokemon.name;
+        const basePokemon = PokemonHelper.getPokemonByName(name);
+        const maxHealth: number = Math.floor(baseHealth * (1 + (chestsOpened / 5)));
+        const exp: number = basePokemon.exp;
+        const shiny: boolean = this.generateShiny(GameConstants.SHINY_CHANCE_DUNGEON);
+        return new BattlePokemon(name, basePokemon.id, basePokemon.type1, basePokemon.type2, maxHealth, level, 0, exp, 0, shiny, GameConstants.DUNGEON_SHARDS);
+    }
+
+    public static generateDungeonBoss(bossPokemon: DungeonBossPokemon, chestsOpened: number): BattlePokemon {
         const name: PokemonNameType = bossPokemon.name;
         const basePokemon = PokemonHelper.getPokemonByName(name);
         const id = basePokemon.id;
@@ -196,10 +202,21 @@ class PokemonFactory {
         return GameConstants.clipNumber(catchRateRaw, 0, 100);
     }
 
-    private static generateHeldItem(item: string, chance: number): string | null {
-        if (!item || !ItemList[item]) {
+    private static generateHeldItem(item: BagItem, modifier: number): BagItem | null {
+        if (!item || !BagHandler.displayName(item)) {
             return null;
         }
+
+        let chance = GameConstants.HELD_ITEM_CHANCE;
+        switch (item.type) {
+            case ItemType.underground:
+                chance = GameConstants.HELD_UNDERGROUND_ITEM_CHANCE;
+                break;
+            default:
+                chance = GameConstants.HELD_ITEM_CHANCE;
+                break;
+        }
+        chance /= modifier;
 
         if (EffectEngineRunner.isActive(GameConstants.BattleItemType.Item_magnet)()) {
             chance /= 1.5;
